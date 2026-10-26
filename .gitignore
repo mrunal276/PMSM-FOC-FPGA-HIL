@@ -1,0 +1,25 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Large simulation datasets (can be regenerated from scripts)
+*.csv.bak
+# Keep golden CSV testvectors and summary datasets, but ignore temporary dumps if any
+
+# Vivado / EDA tool outputs
+*.jou
+*.log
+.Xil/
+*.str
+work/
+transcript
+*.vcd
+*.wdb
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
