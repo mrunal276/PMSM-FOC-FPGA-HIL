@@ -5,17 +5,35 @@ __pycache__/
 
 # Large simulation datasets (can be regenerated from scripts)
 *.csv.bak
-# Keep golden CSV testvectors and summary datasets, but ignore temporary dumps if any
 
-# Vivado / EDA tool outputs
+# Vivado / EDA tool generated build artefacts (large, regenerable)
 *.jou
+*.backup.jou
 *.log
+*.backup.log
 .Xil/
 *.str
 work/
 transcript
 *.vcd
 *.wdb
+*.wdf
+
+# Vivado generated project build directories (gigabytes; regenerable with run_project_implementation.tcl)
+foc_motor_ctrl/foc_motor_ctrl.runs/
+foc_motor_ctrl/foc_motor_ctrl.sim/
+foc_motor_ctrl/foc_motor_ctrl.cache/
+foc_motor_ctrl/foc_motor_ctrl.gen/
+foc_motor_ctrl/foc_motor_ctrl.ip_user_files/
+foc_motor_ctrl/.Xil/
+.gen/
+.srcs/
+
+# Large binary artefacts (keep .bit and .ltx in reports/ for reference but ignore routed checkpoint)
+foc_motor_ctrl/reports/foc_top_routed.dcp
+
+# Keep ILA data files (small, captured from hardware)
+# foc_motor_ctrl/foc_motor_ctrl.hw/  <-- tracked below via explicit add
 
 # OS generated files
 Thumbs.db

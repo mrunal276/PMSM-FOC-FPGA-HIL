@@ -527,140 +527,101 @@ def cordic_atan2_float(x: float, y: float) -> float:
 
 def cordic_rotation_fixed(theta_q214: int):
     """
-    Fixed-point 16-stage CORDIC rotation.
+    Fixed-point 16-stage CORDIC rotation matched bit-for-bit to cordic.sv.
 
     EXTERNAL INPUT:
         theta_q214 : unsigned full-circle Q2.14
 
-        0x0000 =   0 deg
-        0x2000 =  90 deg
-        0x4000 = 180 deg
-        0x6000 = 270 deg
-
     EXTERNAL OUTPUT:
         cos_q15 : signed Q1.15
         sin_q15 : signed Q1.15
+
+    RTL-matched arithmetic:
+        * quadrant reduction is identical to cordic.sv
+        * internal X/Y shifts use arithmetic truncation (>>> / >>)
+        * final Q20->Q15 conversion is (+16) followed by arithmetic >> 5
+        * quadrant signs are applied AFTER final magnitude quantization
     """
 
-    # ------------------------------------------------------------------------
-    # Convert external unsigned angle to internal signed angle.
-    # ------------------------------------------------------------------------
-
-    theta = _unsigned_q214_to_signed(
-        theta_q214
-    )
+    theta_q214 = int(theta_q214) & 0xFFFF
 
     # ------------------------------------------------------------------------
-    # Quadrant pre-rotation.
+    # Match the RTL quadrant reduction exactly.
     # ------------------------------------------------------------------------
+    if theta_q214 == 0x8000:
+        quadrant = 0
+        reduced_angle_q214 = 0
+    elif theta_q214 < 0x2000:
+        quadrant = 0
+        reduced_angle_q214 = theta_q214
+    elif theta_q214 < 0x4000:
+        quadrant = 1
+        reduced_angle_q214 = 0x4000 - theta_q214
+    elif theta_q214 < 0x6000:
+        quadrant = 2
+        reduced_angle_q214 = theta_q214 - 0x4000
+    else:
+        quadrant = 3
+        reduced_angle_q214 = 0x8000 - theta_q214
 
-    negate = False
+    # Q2.14 -> internal angle Q?.22.
+    z = reduced_angle_q214 << (ANGLE_INTERNAL_FRAC - Q214_FRAC)
 
-    if theta > Q214_HALF_PI:
-
-        theta -= Q214_PI
-
-        negate = True
-
-    elif theta < -Q214_HALF_PI:
-
-        theta += Q214_PI
-
-        negate = True
-
-    # ------------------------------------------------------------------------
-    # Convert external Q2.14 angle into internal Q?.22.
-    # ------------------------------------------------------------------------
-
-    angle_shift = (
-        ANGLE_INTERNAL_FRAC
-        - Q214_FRAC
-    )
-
-    z = int(theta) << angle_shift
-
-    # ------------------------------------------------------------------------
-    # Initial vector.
-    #
-    # X = K
-    # Y = 0
-    # ------------------------------------------------------------------------
-
+    # Initial vector: K, 0.
     x = K_INTERNAL
     y = 0
 
     # ------------------------------------------------------------------------
-    # 16 CORDIC stages.
+    # 16 CORDIC stages. Python >> is an arithmetic right shift, matching
+    # signed SystemVerilog >>> for these integer values.
     # ------------------------------------------------------------------------
-
     for i in range(N_STAGES):
-
         if z >= 0:
-            d = 1
+            x_shift = y >> i
+            y_shift = x >> i
+            x_new = x - x_shift
+            y_new = y + y_shift
+            z_new = z - ATAN_TABLE_INTERNAL[i]
         else:
-            d = -1
-
-        x_shift = _round_shift(
-            y,
-            i
-        )
-
-        y_shift = _round_shift(
-            x,
-            i
-        )
-
-        x_new = (
-            x
-            - d * x_shift
-        )
-
-        y_new = (
-            y
-            + d * y_shift
-        )
-
-        z_new = (
-            z
-            - d * ATAN_TABLE_INTERNAL[i]
-        )
+            x_shift = y >> i
+            y_shift = x >> i
+            x_new = x + x_shift
+            y_new = y - y_shift
+            z_new = z + ATAN_TABLE_INTERNAL[i]
 
         x = x_new
         y = y_new
         z = z_new
 
     # ------------------------------------------------------------------------
-    # Undo quadrant pre-rotation.
+    # Match RTL q20_to_q15_sat() exactly BEFORE applying quadrant signs.
     # ------------------------------------------------------------------------
+    def rtl_q20_to_q15(value: int) -> int:
+        shifted = (int(value) + 16) >> 5
+        if shifted > 32767:
+            return 32767
+        if shifted < -32768:
+            return -32768
+        return shifted
 
-    if negate:
-        x = -x
-        y = -y
+    cos_mag = rtl_q20_to_q15(x)
+    sin_mag = rtl_q20_to_q15(y)
 
-    # ------------------------------------------------------------------------
-    # Convert internal Q?.20 to external signed Q1.15.
-    # ------------------------------------------------------------------------
+    # Match the RTL output quadrant case statement.
+    if quadrant == 0:
+        cos_q15 = cos_mag
+        sin_q15 = sin_mag
+    elif quadrant == 1:
+        cos_q15 = -cos_mag
+        sin_q15 = sin_mag
+    elif quadrant == 2:
+        cos_q15 = -cos_mag
+        sin_q15 = -sin_mag
+    else:
+        cos_q15 = cos_mag
+        sin_q15 = -sin_mag
 
-    output_shift = (
-        XY_INTERNAL_FRAC
-        - Q15_FRAC
-    )
-
-    cos_q15 = _sat16(
-        _round_shift(
-            x,
-            output_shift
-        )
-    )
-
-    sin_q15 = _sat16(
-        _round_shift(
-            y,
-            output_shift
-        )
-    )
-
-    return cos_q15, sin_q15
+    return _sat16(cos_q15), _sat16(sin_q15)
 
 
 # ============================================================================
