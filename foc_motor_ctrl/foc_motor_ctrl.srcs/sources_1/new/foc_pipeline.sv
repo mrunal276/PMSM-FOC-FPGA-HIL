@@ -133,151 +133,73 @@ module foc_pipeline (
     assign beta_aligned  = beta_delay_pipe[CLARKE_DELAY-1];
 
     // ------------------------------------------------------------------------
-    // Stage 2: Park Transform & Speed PI Loop (at cycle 18 -> ready cycle 19)
+    // Stage 2: Hand-HLS 2-DSP Time-Multiplexed FOC Arithmetic Engine
+    // (Replaces parallel Park, Speed PI, Id PI, Iq PI, and Inverse Park)
+    // Runs all 25 operations across exactly 2 DSP slices in 9 cycles.
     // ------------------------------------------------------------------------
-    logic               park_valid;
-    logic signed [15:0] park_id;
-    logic signed [15:0] park_iq;
+    localparam int IN_ALIGN_DELAY = 17;
 
-    park u_park (
-        .clk          (clk),
-        .rst          (rst),
-        .input_valid  (cordic_valid),
-        .i_alpha      (alpha_aligned),
-        .i_beta       (beta_aligned),
-        .cos_theta    (cordic_cos),
-        .sin_theta    (cordic_sin),
-        .output_valid (park_valid),
-        .i_d          (park_id),
-        .i_q          (park_iq)
-    );
-
-    // Delay speed references & omega_meas by 18 cycles to enter speed_pi at cycle 18
-    localparam int SPEED_DELAY = 18;
-    logic [15:0] omega_ref_pipe  [0:SPEED_DELAY-1];
-    logic [15:0] omega_meas_pipe [0:SPEED_DELAY-1];
+    logic [15:0] omega_ref_pipe  [0:IN_ALIGN_DELAY-1];
+    logic [15:0] omega_meas_pipe [0:IN_ALIGN_DELAY-1];
+    logic signed [15:0] id_ref_pipe [0:IN_ALIGN_DELAY-1];
 
     always_ff @(posedge clk) begin
         if (rst) begin
-            for (int i = 0; i < SPEED_DELAY; i++) begin
+            for (int i = 0; i < IN_ALIGN_DELAY; i++) begin
                 omega_ref_pipe[i]  <= 16'd0;
                 omega_meas_pipe[i] <= 16'd0;
+                id_ref_pipe[i]     <= 16'sd0;
             end
         end else begin
             omega_ref_pipe[0]  <= omega_ref;
             omega_meas_pipe[0] <= omega_meas;
-            for (int i = 1; i < SPEED_DELAY; i++) begin
+            id_ref_pipe[0]     <= id_ref;
+            for (int i = 1; i < IN_ALIGN_DELAY; i++) begin
                 omega_ref_pipe[i]  <= omega_ref_pipe[i-1];
                 omega_meas_pipe[i] <= omega_meas_pipe[i-1];
+                id_ref_pipe[i]     <= id_ref_pipe[i-1];
             end
         end
     end
 
-    logic               speed_pi_valid;
-    logic signed [15:0] speed_iq_ref;
+    logic               shared_done;
+    logic signed [15:0] shared_valpha;
+    logic signed [15:0] shared_vbeta;
+    logic signed [15:0] shared_id_meas;
+    logic signed [15:0] shared_iq_meas;
+    logic signed [15:0] shared_iq_ref;
+    logic signed [15:0] shared_vd;
+    logic signed [15:0] shared_vq;
 
-    speed_pi u_speed_pi (
-        .clk          (clk),
-        .rst          (rst),
-        .input_valid  (cordic_valid),
-        .omega_ref    (omega_ref_pipe[SPEED_DELAY-1]),
-        .omega_meas   (omega_meas_pipe[SPEED_DELAY-1]),
-        .kp           (speed_kp),
-        .ki_dt_q31    (speed_ki_dt),
-        .iq_ref       (speed_iq_ref),
-        .output_valid (speed_pi_valid)
-    );
-
-    // Delay id_ref by 19 cycles to enter current_pi_d at cycle 19
-    localparam int ID_REF_DELAY = 19;
-    logic signed [15:0] id_ref_pipe [0:ID_REF_DELAY-1];
-    always_ff @(posedge clk) begin
-        if (rst) begin
-            for (int i = 0; i < ID_REF_DELAY; i++) id_ref_pipe[i] <= 16'sd0;
-        end else begin
-            id_ref_pipe[0] <= id_ref;
-            for (int i = 1; i < ID_REF_DELAY; i++) id_ref_pipe[i] <= id_ref_pipe[i-1];
-        end
-    end
-
-    // ------------------------------------------------------------------------
-    // Stage 3: Current PI Loops (Id and Iq) (at cycle 19 -> ready cycle 20)
-    // KP_FRAC=12 allows gains up to 7.999 (Kp=3.0 = 12288)
-    // ------------------------------------------------------------------------
-    logic               pi_d_valid;
-    logic signed [15:0] v_d_calc;
-
-    current_pi #(
+    foc_shared_2dsp #(
         .KP_FRAC(12)
-    ) u_current_pi_d (
+    ) u_foc_shared_2dsp (
         .clk          (clk),
         .rst          (rst),
-        .input_valid  (park_valid),
-        .ref_in       (id_ref_pipe[ID_REF_DELAY-1]),
-        .meas_in      (park_id),
-        .kp           (current_kp),
-        .ki           (current_ki),
-        .output_data  (v_d_calc),
-        .output_valid (pi_d_valid)
-    );
-
-    logic               pi_q_valid;
-    logic signed [15:0] v_q_calc;
-
-    current_pi #(
-        .KP_FRAC(12)
-    ) u_current_pi_q (
-        .clk          (clk),
-        .rst          (rst),
-        .input_valid  (park_valid),
-        .ref_in       (speed_iq_ref),
-        .meas_in      (park_iq),
-        .kp           (current_kp),
-        .ki           (current_ki),
-        .output_data  (v_q_calc),
-        .output_valid (pi_q_valid)
+        .start        (cordic_valid),
+        .i_alpha      (alpha_aligned),
+        .i_beta       (beta_aligned),
+        .cos_theta    (cordic_cos),
+        .sin_theta    (cordic_sin),
+        .omega_ref    (omega_ref_pipe[IN_ALIGN_DELAY-1]),
+        .omega_meas   (omega_meas_pipe[IN_ALIGN_DELAY-1]),
+        .speed_kp     (speed_kp),
+        .speed_ki_dt  (speed_ki_dt),
+        .id_ref       (id_ref_pipe[IN_ALIGN_DELAY-1]),
+        .current_kp   (current_kp),
+        .current_ki   (current_ki),
+        .done         (shared_done),
+        .v_alpha      (shared_valpha),
+        .v_beta       (shared_vbeta),
+        .id_meas      (shared_id_meas),
+        .iq_meas      (shared_iq_meas),
+        .iq_ref       (shared_iq_ref),
+        .v_d          (shared_vd),
+        .v_q          (shared_vq)
     );
 
     // ------------------------------------------------------------------------
-    // Stage 4: Inverse Park Transform (at cycle 20 -> ready cycle 21)
-    // CORDIC sin/cos delayed by 2 cycles (from cycle 18 to cycle 20)
-    // ------------------------------------------------------------------------
-    logic signed [15:0] cordic_cos_d1, cordic_cos_d2;
-    logic signed [15:0] cordic_sin_d1, cordic_sin_d2;
-
-    always_ff @(posedge clk) begin
-        if (rst) begin
-            cordic_cos_d1 <= 16'sd0;
-            cordic_cos_d2 <= 16'sd0;
-            cordic_sin_d1 <= 16'sd0;
-            cordic_sin_d2 <= 16'sd0;
-        end else begin
-            cordic_cos_d1 <= cordic_cos;
-            cordic_cos_d2 <= cordic_cos_d1;
-            cordic_sin_d1 <= cordic_sin;
-            cordic_sin_d2 <= cordic_sin_d1;
-        end
-    end
-
-    logic               inv_park_valid;
-    logic signed [15:0] v_alpha_calc;
-    logic signed [15:0] v_beta_calc;
-
-    inv_park u_inv_park (
-        .clk          (clk),
-        .rst          (rst),
-        .input_valid  (pi_d_valid),
-        .v_d          (v_d_calc),
-        .v_q          (v_q_calc),
-        .cos_theta    (cordic_cos_d2),
-        .sin_theta    (cordic_sin_d2),
-        .output_valid (inv_park_valid),
-        .v_alpha      (v_alpha_calc),
-        .v_beta       (v_beta_calc)
-    );
-
-    // ------------------------------------------------------------------------
-    // Stage 5: Space Vector PWM (at cycle 21 -> ready cycle 22)
+    // Stage 3: Space Vector PWM (2-stage pipelined)
     // ------------------------------------------------------------------------
     logic               svpwm_valid;
     logic        [15:0] svpwm_da;
@@ -288,9 +210,9 @@ module foc_pipeline (
     svpwm u_svpwm (
         .clk          (clk),
         .rst          (rst),
-        .input_valid  (inv_park_valid),
-        .v_alpha      (v_alpha_calc),
-        .v_beta       (v_beta_calc),
+        .input_valid  (shared_done),
+        .v_alpha      (shared_valpha),
+        .v_beta       (shared_vbeta),
         .duty_a       (svpwm_da),
         .duty_b       (svpwm_db),
         .duty_c       (svpwm_dc),
@@ -309,12 +231,12 @@ module foc_pipeline (
 
     assign i_alpha_out  = alpha_aligned;
     assign i_beta_out   = beta_aligned;
-    assign id_meas_out  = park_id;
-    assign iq_meas_out  = park_iq;
-    assign iq_ref_out   = speed_iq_ref;
-    assign vd_out       = v_d_calc;
-    assign vq_out       = v_q_calc;
-    assign valpha_out   = v_alpha_calc;
-    assign vbeta_out    = v_beta_calc;
+    assign id_meas_out  = shared_id_meas;
+    assign iq_meas_out  = shared_iq_meas;
+    assign iq_ref_out   = shared_iq_ref;
+    assign vd_out       = shared_vd;
+    assign vq_out       = shared_vq;
+    assign valpha_out   = shared_valpha;
+    assign vbeta_out    = shared_vbeta;
 
 endmodule

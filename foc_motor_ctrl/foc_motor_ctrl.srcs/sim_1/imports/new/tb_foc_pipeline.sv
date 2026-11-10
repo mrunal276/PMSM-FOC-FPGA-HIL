@@ -6,7 +6,7 @@ module tb_foc_pipeline;
     localparam integer MAX_VECTORS      = 500;
     localparam integer DUTY_TOL         = 2;
     localparam integer TRANSFORM_TOL    = 2;
-    localparam integer EXPECTED_LATENCY = 22; // SVPWM now 2-stage pipelined (was 21)
+    localparam integer EXPECTED_LATENCY = 29; // 2-DSP time-multiplexed shared engine (was 22)
 
     reg clk = 0;
     reg rst = 1;
