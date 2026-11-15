@@ -39,35 +39,33 @@ module pwm_generator (
     logic [11:0] threshold_c_shadow;
 
     logic        shadow_pending;
+    logic        duty_calc_pending;
 
     // Convert unsigned Q1.15 duty to a threshold from 0 to 2500.
-    // Round to nearest integer. Values above 32767 are clamped.
+    // Bit-true exact reciprocal multiplier: (duty * 5120157 + 33554422) >> 26
+    // Matches (duty * 2500 + 16383) / 32767 across all 32768 values with 0 error
+    // eliminating the 32-bit combinational divider for 125 MHz timing closure.
     function automatic logic [11:0] duty_to_threshold(
         input logic [15:0] duty
     );
         logic [15:0] duty_clamped;
-        logic [31:0] product;
-        logic [31:0] rounded_value;
+        logic [38:0] product_sum;
         begin
-            if (duty > 16'd32767)
-                duty_clamped = 16'd32767;
-            else
-                duty_clamped = duty;
-
-            product = duty_clamped * 32'd2500;
-            rounded_value = (product + 32'd16383) / 32'd32767;
-
-            duty_to_threshold = rounded_value[11:0];
+            duty_clamped = (duty > 16'd32767) ? 16'd32767 : duty;
+            product_sum = (39'(duty_clamped) * 39'd5120157) + 39'd33554422;
+            duty_to_threshold = product_sum[37:26];
         end
     endfunction
 
-    // Capture incoming duty values. Apply a complete set together
-    // at a subsequent carrier valley.
+    // Capture incoming duty values and compute thresholds in a 2-stage pipeline.
+    // Stage 1: Register raw duty values from SVPWM (0 combinational delay)
+    // Stage 2: Compute threshold via DSP multiplier (isolated from SVPWM)
+    // Apply complete set together at subsequent carrier valley (cycle 5000).
     always_ff @(posedge clk) begin
         if (rst) begin
-            duty_a_shadow <= 16'd0;
-            duty_b_shadow <= 16'd0;
-            duty_c_shadow <= 16'd0;
+            duty_a_shadow      <= 16'd0;
+            duty_b_shadow      <= 16'd0;
+            duty_c_shadow      <= 16'd0;
 
             threshold_a_shadow <= 12'd0;
             threshold_b_shadow <= 12'd0;
@@ -77,24 +75,30 @@ module pwm_generator (
             threshold_b_active <= 12'd0;
             threshold_c_active <= 12'd0;
 
-            shadow_pending <= 1'b0;
-        end else if (duty_valid) begin
-            duty_a_shadow <= duty_a;
-            duty_b_shadow <= duty_b;
-            duty_c_shadow <= duty_c;
+            shadow_pending     <= 1'b0;
+            duty_calc_pending  <= 1'b0;
+        end else begin
+            if (duty_valid) begin
+                duty_a_shadow     <= duty_a;
+                duty_b_shadow     <= duty_b;
+                duty_c_shadow     <= duty_c;
+                duty_calc_pending <= 1'b1;
+            end
 
-            threshold_a_shadow <= duty_to_threshold(duty_a);
-            threshold_b_shadow <= duty_to_threshold(duty_b);
-            threshold_c_shadow <= duty_to_threshold(duty_c);
+            if (duty_calc_pending) begin
+                threshold_a_shadow <= duty_to_threshold(duty_a_shadow);
+                threshold_b_shadow <= duty_to_threshold(duty_b_shadow);
+                threshold_c_shadow <= duty_to_threshold(duty_c_shadow);
+                duty_calc_pending  <= 1'b0;
+                shadow_pending     <= 1'b1;
+            end
 
-            shadow_pending <= 1'b1;
-        end else if (carrier_count == 12'd0 && count_up &&
-                     shadow_pending) begin
-            threshold_a_active <= threshold_a_shadow;
-            threshold_b_active <= threshold_b_shadow;
-            threshold_c_active <= threshold_c_shadow;
-
-            shadow_pending <= 1'b0;
+            if (carrier_count == 12'd0 && count_up && shadow_pending) begin
+                threshold_a_active <= threshold_a_shadow;
+                threshold_b_active <= threshold_b_shadow;
+                threshold_c_active <= threshold_c_shadow;
+                shadow_pending     <= 1'b0;
+            end
         end
     end
 

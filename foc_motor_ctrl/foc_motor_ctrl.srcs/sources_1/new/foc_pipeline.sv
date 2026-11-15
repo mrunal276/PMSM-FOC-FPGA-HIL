@@ -103,10 +103,10 @@ module foc_pipeline (
 
     // ------------------------------------------------------------------------
     // Delay matching:
-    // Clarke output ready at cycle 1. CORDIC outputs ready at cycle 18.
-    // Delay Clarke outputs by 17 cycles (1 + 17 = 18).
+    // Clarke output ready at cycle 4. CORDIC outputs ready at cycle 18.
+    // Delay Clarke outputs by 14 cycles (4 + 14 = 18).
     // ------------------------------------------------------------------------
-    localparam int CLARKE_DELAY = 17;
+    localparam int CLARKE_DELAY = 14;
 
     logic signed [15:0] alpha_delay_pipe [0:CLARKE_DELAY-1];
     logic signed [15:0] beta_delay_pipe  [0:CLARKE_DELAY-1];

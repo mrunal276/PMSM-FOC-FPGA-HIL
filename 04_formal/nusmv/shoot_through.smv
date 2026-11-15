@@ -1,0 +1,64 @@
+-- NuSMV Model: Dead-time Inverter Shoot-Through Invariant Verification
+-- Proves that for all reachable states, complementary gates are never both HIGH.
+
+MODULE main
+VAR
+    clk       : boolean;
+    rst       : boolean;
+    fault     : boolean;
+    pwm_in    : boolean;
+    state     : {ST_OFF, ST_HIGH, ST_LOW};
+    timer     : 0..3;
+    gate_h    : boolean;
+    gate_l    : boolean;
+
+ASSIGN
+    init(state)  := ST_OFF;
+    init(timer)  := 0;
+    init(gate_h) := FALSE;
+    init(gate_l) := FALSE;
+
+    next(state) :=
+        case
+            rst | fault : ST_OFF;
+            state = ST_OFF :
+                case
+                    pwm_in  : ST_HIGH;
+                    !pwm_in : ST_LOW;
+                esac;
+            state = ST_HIGH & !pwm_in : ST_OFF;
+            state = ST_LOW  & pwm_in  : ST_OFF;
+            TRUE : state;
+        esac;
+
+    next(timer) :=
+        case
+            rst | fault : 0;
+            state != next(state) & next(state) = ST_OFF : 2; -- 2 cycles dead time
+            timer > 0 : timer - 1;
+            TRUE : 0;
+        esac;
+
+    next(gate_h) :=
+        case
+            rst | fault : FALSE;
+            next(state) = ST_HIGH & next(timer) = 0 : TRUE;
+            TRUE : FALSE;
+        esac;
+
+    next(gate_l) :=
+        case
+            rst | fault : FALSE;
+            next(state) = ST_LOW & next(timer) = 0 : TRUE;
+            TRUE : FALSE;
+        esac;
+
+-- INVARIANTS TO PROVE:
+-- 1. Gate High and Gate Low are NEVER asserted simultaneously in any execution path
+CTLSPEC AG !(gate_h & gate_l)
+
+-- 2. In reset or fault, all gate outputs are strictly de-asserted
+CTLSPEC AG ((rst | fault) -> (!gate_h & !gate_l))
+
+-- 3. Dead-time timer prevents high assertion while decaying
+CTLSPEC AG (timer > 0 -> (!gate_h & !gate_l))

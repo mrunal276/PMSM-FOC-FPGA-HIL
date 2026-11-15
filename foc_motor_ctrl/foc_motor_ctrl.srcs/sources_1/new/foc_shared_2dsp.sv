@@ -295,17 +295,29 @@ module foc_shared_2dsp #(
     // =========================================================================
     // Registers and State Machine
     // =========================================================================
-    typedef enum logic [3:0] {
-        ST_IDLE      = 4'd0,
-        ST_CYC1      = 4'd1, // DSP computing M1, M2; feed M3, M4
-        ST_CYC2      = 4'd2, // DSP out=M1, M2; DSP computing M3, M4; feed M5, M6
-        ST_CYC3      = 4'd3, // DSP out=M3, M4; DSP computing M5, M6; feed M7, M8
-        ST_CYC4      = 4'd4, // DSP out=M5, M6; DSP computing M7, M8; feed M9, M10
-        ST_CYC5      = 4'd5, // DSP out=M7, M8; DSP computing M9, M10; feed M11, M12
-        ST_CYC6      = 4'd6, // DSP out=M9, M10; DSP computing M11, M12; feed M13, M14
-        ST_CYC7      = 4'd7, // DSP out=M11, M12; DSP computing M13, M14
-        ST_CYC8      = 4'd8, // DSP out=M11, M12; wait M13, M14
-        ST_CYC9      = 4'd9  // DSP out=M13, M14; compute Inverse Park, done!
+    typedef enum logic [4:0] {
+        ST_IDLE       = 5'd0,
+        ST_PARK1      = 5'd1,   // Feed M3, M4
+        ST_PARK2      = 5'd2,   // Latch M1, M2; Feed M5, M6
+        ST_PARK3      = 5'd3,   // Latch M3, M4; Compute id_meas
+        ST_PARK4      = 5'd21,  // Compute iq_meas; Prepare & register Id error
+        ST_SPD_PI1    = 5'd4,   // Speed PI Stage 1 (latch prop & inc)
+        ST_SPD_PI2    = 5'd5,   // Speed PI Stage 2A: Compute candidate integrator (Q8.24)
+        ST_SPD_PI2B   = 5'd17,  // Speed PI Stage 2B: Convert Q8.24 cand to Q1.15 (break CARRY4 chain)
+        ST_SPD_PI3    = 5'd6,   // Speed PI Stage 2C: Anti-windup, update integrator, produce iq_ref
+        ST_ID_PI1     = 5'd7,   // Id PI Stage 1: Compute candidate integrator (Q8.24)
+        ST_ID_PI1B    = 5'd18,  // Id PI Stage 1B: Convert Q8.24 cand to Q1.15 (break CARRY4 chain)
+        ST_ID_PI2     = 5'd8,   // Id PI Stage 2: Anti-windup, update integrator, v_d; Feed M9, M10
+        ST_IQ_WAIT    = 5'd9,   // Wait 1 cycle for M9, M10 to multiply
+        ST_IQ_PI1     = 5'd10,  // Iq PI Stage 1 (prop & inc)
+        ST_IQ_PI2     = 5'd11,  // Iq PI Stage 2A: Compute candidate integrator (Q8.24)
+        ST_IQ_PI2B    = 5'd19,  // Iq PI Stage 2B: Convert Q8.24 cand to Q1.15 (break CARRY4 chain)
+        ST_IQ_PI3     = 5'd12,  // Iq PI Stage 2C: Anti-windup, update integrator, v_q
+        ST_INV1       = 5'd13,  // Feed M11, M12 (from registered v_d, v_q)
+        ST_INV2       = 5'd14,  // Feed M13, M14 (from registered v_d, v_q)
+        ST_INV3       = 5'd15,  // Latch M11, M12
+        ST_INV4       = 5'd16,  // Register m13_sat, m14_sat; compute v_alpha
+        ST_INV5       = 5'd20   // Compute v_beta from registered m13_sat, m14_sat; done!
     } state_t;
 
     state_t state;
@@ -321,8 +333,23 @@ module foc_shared_2dsp #(
 
     // Intermediate registers for Park
     logic signed [15:0] m1_reg, m2_reg;
+    logic signed [15:0] m3_reg, m4_reg;
     logic signed [15:0] neg_r_sin;
     assign neg_r_sin = -r_sin;
+
+    // Pipelined intermediate registers for PI controllers (breaks long combinational cones)
+    logic signed [15:0] spd_prop_reg;
+    logic signed [31:0] spd_inc_reg;
+    logic signed [31:0] spd_int_cand_reg;
+    logic signed [15:0] spd_int_q15_reg;
+    logic signed [15:0] id_prop_reg;
+    logic signed [15:0] id_inc_reg;
+    logic signed [31:0] id_int_cand_reg;
+    logic signed [15:0] id_int_q15_reg;
+    logic signed [15:0] iq_prop_reg;
+    logic signed [15:0] iq_inc_reg;
+    logic signed [31:0] iq_int_cand_reg;
+    logic signed [15:0] iq_int_q15_reg;
 
     // Integrator states
     logic signed [31:0] spd_integrator;
@@ -333,11 +360,14 @@ module foc_shared_2dsp #(
     logic signed [16:0] spd_error_wide;
     logic signed [16:0] id_error_wide;
     logic signed [15:0] id_error_q15;
+    logic signed [15:0] id_error_reg;
     logic signed [16:0] iq_error_wide;
     logic signed [15:0] iq_error_q15;
+    logic signed [15:0] iq_error_reg;
 
     // Intermediate registers for Inverse Park
     logic signed [15:0] m11_reg, m12_reg;
+    logic signed [15:0] m13_sat_reg, m14_sat_reg;  // Pipeline regs to break DSP->v_beta CARRY4 chain
 
     // Sequential Sequencer
     always_ff @(posedge clk) begin
@@ -360,8 +390,20 @@ module foc_shared_2dsp #(
             dsp1_b         <= 18'sd0;
             m1_reg         <= 16'sd0;
             m2_reg         <= 16'sd0;
+            m3_reg         <= 16'sd0;
+            m4_reg         <= 16'sd0;
+            id_error_reg   <= 16'sd0;
+            iq_error_reg   <= 16'sd0;
+            spd_prop_reg   <= 16'sd0;
+            spd_inc_reg    <= 32'sd0;
+            id_prop_reg    <= 16'sd0;
+            id_inc_reg     <= 16'sd0;
+            iq_prop_reg    <= 16'sd0;
+            iq_inc_reg     <= 16'sd0;
             m11_reg        <= 16'sd0;
             m12_reg        <= 16'sd0;
+            m13_sat_reg    <= 16'sd0;
+            m14_sat_reg    <= 16'sd0;
             r_alpha        <= 16'sd0;
             r_beta         <= 16'sd0;
             r_cos          <= 16'sd0;
@@ -401,11 +443,11 @@ module foc_shared_2dsp #(
                         dsp1_a <= {{9{sin_theta[15]}}, sin_theta};
                         dsp1_b <= {{2{i_beta[15]}}, i_beta};
 
-                        state  <= ST_CYC1;
+                        state  <= ST_PARK1;
                     end
                 end
 
-                ST_CYC1: begin
+                ST_PARK1: begin
                     // Launch M3 (DSP0) and M4 (DSP1)
                     // M3: Ialpha * (-sin)
                     dsp0_a <= {{9{neg_r_sin[15]}}, neg_r_sin};
@@ -415,10 +457,10 @@ module foc_shared_2dsp #(
                     dsp1_a <= {{9{r_cos[15]}}, r_cos};
                     dsp1_b <= {{2{r_beta[15]}}, r_beta};
 
-                    state  <= ST_CYC2;
+                    state  <= ST_PARK2;
                 end
 
-                ST_CYC2: begin
+                ST_PARK2: begin
                     // DSP outputs now have M1 and M2!
                     m1_reg <= q15_round_halfup_sat(dsp0_p);
                     m2_reg <= q15_round_halfup_sat(dsp1_p);
@@ -435,70 +477,88 @@ module foc_shared_2dsp #(
                     dsp1_a <= r_ski_dt[24:0];
                     dsp1_b <= {{1{spd_error_wide[16]}}, spd_error_wide};
 
-                    state  <= ST_CYC3;
+                    state  <= ST_PARK3;
                 end
 
-                ST_CYC3: begin
+                ST_PARK3: begin
                     // DSP outputs now have M3 and M4!
-                    // Compute Park Transform (A1, A2)
+                    // Pipelining: latch m3_reg and m4_reg, compute id_meas from registered m1_reg and m2_reg
+                    m3_reg  <= q15_round_halfup_sat(dsp0_p);
+                    m4_reg  <= q15_round_halfup_sat(dsp1_p);
+                    id_meas <= q15_add_sat(m1_reg, m2_reg);
+
+                    state <= ST_PARK4;
+                end
+
+                ST_PARK4: begin
+                    // Compute iq_meas from registered m3_reg and m4_reg (breaks the DSP0/DSP1 -> iq_meas chain!)
+                    iq_meas <= q15_add_sat(m3_reg, m4_reg);
+
+                    // Compute Id error for Id PI from registered id_meas (breaks the m1_reg/m2_reg -> id_error_reg chain!)
+                    id_error_wide = {r_id_ref[15], r_id_ref} - {id_meas[15], id_meas};
+                    if (id_error_wide > 17'sd32767)
+                        id_error_q15 = 16'sh7fff;
+                    else if (id_error_wide < -17'sd32768)
+                        id_error_q15 = 16'sh8000;
+                    else
+                        id_error_q15 = id_error_wide[15:0];
+
+                    id_error_reg <= id_error_q15;
+
+                    state <= ST_SPD_PI1;
+                end
+
+                ST_SPD_PI1: begin
+                    // DSP outputs now have M5 and M6 (Speed PI)!
+                    // Pipelined Stage 1: Round and saturate proportional and integral increments
+                    spd_prop_reg <= speed_prop_sat(dsp0_p);
+                    spd_inc_reg  <= speed_inc_sat(dsp1_p);
+
+                    // Launch M7 (DSP0) and M8 (DSP1) from registered id_error_reg
+                    // M7: id_error * current_kp
+                    dsp0_a <= {{9{r_ckp[15]}}, r_ckp};
+                    dsp0_b <= {{2{id_error_reg[15]}}, id_error_reg};
+
+                    // M8: id_error * current_ki
+                    dsp1_a <= {{9{r_cki[15]}}, r_cki};
+                    dsp1_b <= {{2{id_error_reg[15]}}, id_error_reg};
+
+                    state <= ST_SPD_PI2;
+                end
+
+                ST_SPD_PI2: begin
+                    // 1. Speed PI Stage 2A: Compute candidate integrator
                     begin
-                        logic signed [15:0] m3_sat, m4_sat;
-                        logic signed [15:0] id_temp, iq_temp;
-                        m3_sat  = q15_round_halfup_sat(dsp0_p);
-                        m4_sat  = q15_round_halfup_sat(dsp1_p);
-                        id_temp = q15_add_sat(m1_reg, m2_reg);
-                        iq_temp = q15_add_sat(m3_sat, m4_sat);
+                        logic signed [32:0] spd_int_sum;
+                        logic signed [31:0] spd_cand;
 
-                        id_meas <= id_temp;
-                        iq_meas <= iq_temp;
+                        spd_int_sum      = $signed({spd_integrator[31], spd_integrator}) +
+                                           $signed({spd_inc_reg[31], spd_inc_reg});
+                        spd_cand         = sat_q24(spd_int_sum);
 
-                        // Prepare Id error for Id PI
-                        id_error_wide = {r_id_ref[15], r_id_ref} - {id_temp[15], id_temp};
-                        if (id_error_wide > 17'sd32767)
-                            id_error_q15 = 16'sh7fff;
-                        else if (id_error_wide < -17'sd32768)
-                            id_error_q15 = 16'sh8000;
-                        else
-                            id_error_q15 = id_error_wide[15:0];
-
-                        // Launch M7 (DSP0) and M8 (DSP1)
-                        // M7: id_error * current_kp
-                        dsp0_a <= {{9{r_ckp[15]}}, r_ckp};
-                        dsp0_b <= {{2{id_error_q15[15]}}, id_error_q15};
-
-                        // M8: id_error * current_ki
-                        dsp1_a <= {{9{r_cki[15]}}, r_cki};
-                        dsp1_b <= {{2{id_error_q15[15]}}, id_error_q15};
+                        spd_int_cand_reg <= spd_cand;
                     end
 
-                    state <= ST_CYC4;
+                    state <= ST_SPD_PI2B;
                 end
 
-                ST_CYC4: begin
-                    // DSP outputs now have M5 and M6!
-                    // Compute Speed PI (A3, A4)
+                ST_SPD_PI2B: begin
+                    // 1. Speed PI Stage 2B: Convert candidate integrator to Q1.15 (break CARRY4 chain)
+                    spd_int_q15_reg <= speed_q24_to_q15(spd_int_cand_reg);
+
+                    state <= ST_SPD_PI3;
+                end
+
+                ST_SPD_PI3: begin
+                    // 1. Speed PI Stage 2B: Apply anti-windup, update integrator, produce iq_ref
                     begin
                         logic signed [16:0] spd_err;
-                        logic signed [15:0] spd_prop;
-                        logic signed [31:0] spd_inc;
-                        logic signed [32:0] spd_int_sum;
-                        logic signed [31:0] spd_int_cand;
-                        logic signed [15:0] spd_int_q15;
                         logic signed [32:0] spd_unsat;
                         logic               spd_allow_int;
-                        logic signed [15:0] iq_ref_temp;
 
-                        spd_err  = $signed({1'b0, r_wref}) - $signed({1'b0, r_wmeas});
-                        spd_prop = speed_prop_sat(dsp0_p);
-                        spd_inc  = speed_inc_sat(dsp1_p);
-
-                        spd_int_sum  = $signed({spd_integrator[31], spd_integrator}) +
-                                       $signed({spd_inc[31], spd_inc});
-                        spd_int_cand = sat_q24(spd_int_sum);
-                        spd_int_q15  = speed_q24_to_q15(spd_int_cand);
-
-                        spd_unsat = $signed({spd_prop[15], spd_prop}) +
-                                    $signed({spd_int_q15[15], spd_int_q15});
+                        spd_err   = $signed({1'b0, r_wref}) - $signed({1'b0, r_wmeas});
+                        spd_unsat = $signed({spd_prop_reg[15], spd_prop_reg}) +
+                                    $signed({spd_int_q15_reg[15], spd_int_q15_reg});
 
                         spd_allow_int = 1'b1;
                         if ((spd_unsat > 33'sd32767) && (spd_err > 17'sd0))
@@ -507,13 +567,71 @@ module foc_shared_2dsp #(
                             spd_allow_int = 1'b0;
 
                         if (spd_allow_int)
-                            spd_integrator <= spd_int_cand;
+                            spd_integrator <= spd_int_cand_reg;
 
-                        iq_ref_temp = sat_q15(spd_unsat);
-                        iq_ref      <= iq_ref_temp;
+                        iq_ref <= sat_q15(spd_unsat);
+                    end
 
-                        // Prepare Iq error for Iq PI
-                        iq_error_wide = {iq_ref_temp[15], iq_ref_temp} - {iq_meas[15], iq_meas};
+                    // 2. Id PI Stage 1: DSP outputs now have M7 and M8!
+                    // Pipelined Stage 1: Round proportional and integral increments
+                    id_prop_reg <= curr_prop_sat(dsp0_p);
+                    id_inc_reg  <= curr_inc_q15(dsp1_p);
+
+                    state <= ST_ID_PI1;
+                end
+
+                ST_ID_PI1: begin
+                    // Id PI Stage 2A: Compute candidate integrator
+                    begin
+                        logic signed [31:0] id_inc_q24;
+                        logic signed [32:0] id_int_sum;
+                        logic signed [31:0] id_cand;
+
+                        id_inc_q24      = {{16{id_inc_reg[15]}}, id_inc_reg} <<< 9;
+                        id_int_sum      = {id_integrator[31], id_integrator} + {id_inc_q24[31], id_inc_q24};
+                        id_cand         = sat_q24(id_int_sum);
+
+                        id_int_cand_reg <= id_cand;
+                    end
+
+                    state <= ST_ID_PI1B;
+                end
+
+                ST_ID_PI1B: begin
+                    // Id PI Stage 2B: Convert Q8.24 to Q1.15 (break CARRY4 chain)
+                    id_int_q15_reg <= curr_q24_to_q15_round(id_int_cand_reg);
+
+                    state <= ST_ID_PI2;
+                end
+
+                ST_ID_PI2: begin
+                    // Id PI Stage 2B: Apply anti-windup, update integrator, produce v_d
+                    begin
+                        logic signed [16:0] vd_unsat;
+                        logic               id_allow_int;
+
+                        vd_unsat = {id_prop_reg[15], id_prop_reg} + {id_int_q15_reg[15], id_int_q15_reg};
+
+                        id_allow_int = 1'b1;
+                        if ((vd_unsat > 17'sd32767) && (id_error_reg > 16'sd0))
+                            id_allow_int = 1'b0;
+                        if ((vd_unsat < -17'sd32768) && (id_error_reg < 16'sd0))
+                            id_allow_int = 1'b0;
+
+                        if (id_allow_int)
+                            id_integrator <= id_int_cand_reg;
+
+                        if (vd_unsat > 17'sd32767)
+                            v_d <= 16'sh7fff;
+                        else if (vd_unsat < -17'sd32768)
+                            v_d <= 16'sh8000;
+                        else
+                            v_d <= vd_unsat[15:0];
+                    end
+
+                    // Launch M9 and M10: iq_ref was registered in ST_SPD_PI2!
+                    begin
+                        iq_error_wide = {iq_ref[15], iq_ref} - {iq_meas[15], iq_meas};
                         if (iq_error_wide > 17'sd32767)
                             iq_error_q15 = 16'sh7fff;
                         else if (iq_error_wide < -17'sd32768)
@@ -521,7 +639,9 @@ module foc_shared_2dsp #(
                         else
                             iq_error_q15 = iq_error_wide[15:0];
 
-                        // Launch M9 (DSP0) and M10 (DSP1)
+                        // Register iq_error_reg to break combinational anti-windup chain in ST_IQ_PI3
+                        iq_error_reg <= iq_error_q15;
+
                         // M9: iq_error * current_kp
                         dsp0_a <= {{9{r_ckp[15]}}, r_ckp};
                         dsp0_b <= {{2{iq_error_q15[15]}}, iq_error_q15};
@@ -531,161 +651,124 @@ module foc_shared_2dsp #(
                         dsp1_b <= {{2{iq_error_q15[15]}}, iq_error_q15};
                     end
 
-                    state <= ST_CYC5;
+                    state <= ST_IQ_WAIT;
                 end
 
-                ST_CYC5: begin
-                    // DSP outputs now have M7 and M8!
-                    // Compute Id PI Controller (A5, A6) -> produces v_d
-                    begin
-                        logic signed [16:0] id_err_w;
-                        logic signed [15:0] id_err_q;
-                        logic signed [15:0] vd_prop;
-                        logic signed [15:0] id_inc_q15;
-                        logic signed [31:0] id_inc_q24;
-                        logic signed [32:0] id_int_sum;
-                        logic signed [31:0] id_int_cand;
-                        logic signed [15:0] id_int_q15;
-                        logic signed [16:0] vd_unsat;
-                        logic               id_allow_int;
-                        logic signed [15:0] vd_temp;
-
-                        id_err_w = {r_id_ref[15], r_id_ref} - {id_meas[15], id_meas};
-                        if (id_err_w > 17'sd32767)      id_err_q = 16'sh7fff;
-                        else if (id_err_w < -17'sd32768) id_err_q = 16'sh8000;
-                        else                            id_err_q = id_err_w[15:0];
-
-                        vd_prop    = curr_prop_sat(dsp0_p);
-                        id_inc_q15 = curr_inc_q15(dsp1_p);
-                        id_inc_q24 = {{16{id_inc_q15[15]}}, id_inc_q15} <<< 9;
-
-                        id_int_sum  = {id_integrator[31], id_integrator} +
-                                      {id_inc_q24[31], id_inc_q24};
-                        id_int_cand = sat_q24(id_int_sum);
-                        id_int_q15  = curr_q24_to_q15_round(id_int_cand);
-
-                        vd_unsat = {vd_prop[15], vd_prop} + {id_int_q15[15], id_int_q15};
-
-                        id_allow_int = 1'b1;
-                        if ((vd_unsat > 17'sd32767) && (id_err_q > 16'sd0))
-                            id_allow_int = 1'b0;
-                        if ((vd_unsat < -17'sd32768) && (id_err_q < 16'sd0))
-                            id_allow_int = 1'b0;
-
-                        if (id_allow_int)
-                            id_integrator <= id_int_cand;
-
-                        if (vd_unsat > 17'sd32767)
-                            vd_temp = 16'sh7fff;
-                        else if (vd_unsat < -17'sd32768)
-                            vd_temp = 16'sh8000;
-                        else
-                            vd_temp = vd_unsat[15:0];
-
-                        v_d <= vd_temp;
-
-                        // We can already prepare DSP0 for Inverse Park Cycle 1 (M11: vd * cos)
-                        dsp0_a <= {{9{r_cos[15]}}, r_cos};
-                        dsp0_b <= {{2{vd_temp[15]}}, vd_temp};
-                    end
-
-                    state <= ST_CYC6;
+                ST_IQ_WAIT: begin
+                    // Wait 1 cycle for M9 and M10 to multiply in DSP
+                    state <= ST_IQ_PI1;
                 end
 
-                ST_CYC6: begin
+                ST_IQ_PI1: begin
                     // DSP outputs now have M9 and M10!
-                    // Compute Iq PI Controller (A7, A8) -> produces v_q
+                    // Pipelined Stage 1: Round proportional and integral increments
+                    iq_prop_reg <= curr_prop_sat(dsp0_p);
+                    iq_inc_reg  <= curr_inc_q15(dsp1_p);
+
+                    state <= ST_IQ_PI2;
+                end
+
+                ST_IQ_PI2: begin
+                    // Iq PI Stage 2A: Compute candidate integrator
                     begin
-                        logic signed [16:0] iq_err_w;
-                        logic signed [15:0] iq_err_q;
-                        logic signed [15:0] vq_prop;
-                        logic signed [15:0] iq_inc_q15;
                         logic signed [31:0] iq_inc_q24;
                         logic signed [32:0] iq_int_sum;
-                        logic signed [31:0] iq_int_cand;
-                        logic signed [15:0] iq_int_q15;
+                        logic signed [31:0] iq_cand;
+
+                        iq_inc_q24      = {{16{iq_inc_reg[15]}}, iq_inc_reg} <<< 9;
+                        iq_int_sum      = {iq_integrator[31], iq_integrator} + {iq_inc_q24[31], iq_inc_q24};
+                        iq_cand         = sat_q24(iq_int_sum);
+
+                        iq_int_cand_reg <= iq_cand;
+                    end
+
+                    state <= ST_IQ_PI2B;
+                end
+
+                ST_IQ_PI2B: begin
+                    // Iq PI Stage 2B: Convert Q8.24 to Q1.15 (break CARRY4 chain)
+                    iq_int_q15_reg <= curr_q24_to_q15_round(iq_int_cand_reg);
+
+                    state <= ST_IQ_PI3;
+                end
+
+                ST_IQ_PI3: begin
+                    // Iq PI Stage 2B: Apply anti-windup, update integrator, produce v_q
+                    begin
                         logic signed [16:0] vq_unsat;
                         logic               iq_allow_int;
-                        logic signed [15:0] vq_temp;
 
-                        iq_err_w = {iq_ref[15], iq_ref} - {iq_meas[15], iq_meas};
-                        if (iq_err_w > 17'sd32767)      iq_err_q = 16'sh7fff;
-                        else if (iq_err_w < -17'sd32768) iq_err_q = 16'sh8000;
-                        else                            iq_err_q = iq_err_w[15:0];
-
-                        vq_prop    = curr_prop_sat(dsp0_p);
-                        iq_inc_q15 = curr_inc_q15(dsp1_p);
-                        iq_inc_q24 = {{16{iq_inc_q15[15]}}, iq_inc_q15} <<< 9;
-
-                        iq_int_sum  = {iq_integrator[31], iq_integrator} +
-                                      {iq_inc_q24[31], iq_inc_q24};
-                        iq_int_cand = sat_q24(iq_int_sum);
-                        iq_int_q15  = curr_q24_to_q15_round(iq_int_cand);
-
-                        vq_unsat = {vq_prop[15], vq_prop} + {iq_int_q15[15], iq_int_q15};
+                        vq_unsat = {iq_prop_reg[15], iq_prop_reg} + {iq_int_q15_reg[15], iq_int_q15_reg};
 
                         iq_allow_int = 1'b1;
-                        if ((vq_unsat > 17'sd32767) && (iq_err_q > 16'sd0))
+                        if ((vq_unsat > 17'sd32767) && (iq_error_reg > 16'sd0))
                             iq_allow_int = 1'b0;
-                        if ((vq_unsat < -17'sd32768) && (iq_err_q < 16'sd0))
+                        if ((vq_unsat < -17'sd32768) && (iq_error_reg < 16'sd0))
                             iq_allow_int = 1'b0;
 
                         if (iq_allow_int)
-                            iq_integrator <= iq_int_cand;
+                            iq_integrator <= iq_int_cand_reg;
 
                         if (vq_unsat > 17'sd32767)
-                            vq_temp = 16'sh7fff;
+                            v_q <= 16'sh7fff;
                         else if (vq_unsat < -17'sd32768)
-                            vq_temp = 16'sh8000;
+                            v_q <= 16'sh8000;
                         else
-                            vq_temp = vq_unsat[15:0];
-
-                        v_q <= vq_temp;
-
-                        // Launch M12 (DSP1): vq * sin
-                        dsp1_a <= {{9{r_sin[15]}}, r_sin};
-                        dsp1_b <= {{2{vq_temp[15]}}, vq_temp};
+                            v_q <= vq_unsat[15:0];
                     end
 
-                    state <= ST_CYC7;
+                    state <= ST_INV1;
                 end
 
-                ST_CYC7: begin
+                ST_INV1: begin
+                    // Both v_d (from ST_ID_PI2) and v_q (from ST_IQ_PI2) are registered in flip-flops!
+                    // Launch Inverse Park Cycle 1:
+                    // M11 (DSP0): v_d * cos
+                    dsp0_a <= {{9{r_cos[15]}}, r_cos};
+                    dsp0_b <= {{2{v_d[15]}}, v_d};
+
+                    // M12 (DSP1): v_q * sin
+                    dsp1_a <= {{9{r_sin[15]}}, r_sin};
+                    dsp1_b <= {{2{v_q[15]}}, v_q};
+
+                    state <= ST_INV2;
+                end
+
+                ST_INV2: begin
                     // Launch Inverse Park Cycle 2:
-                    // M13 (DSP0): vd * sin
+                    // M13 (DSP0): v_d * sin
                     dsp0_a <= {{9{r_sin[15]}}, r_sin};
                     dsp0_b <= {{2{v_d[15]}}, v_d};
 
-                    // M14 (DSP1): vq * cos
+                    // M14 (DSP1): v_q * cos
                     dsp1_a <= {{9{r_cos[15]}}, r_cos};
                     dsp1_b <= {{2{v_q[15]}}, v_q};
 
-                    state <= ST_CYC8;
+                    state <= ST_INV3;
                 end
 
-                ST_CYC8: begin
+                ST_INV3: begin
                     // DSP outputs now have M11 and M12!
                     m11_reg <= q15_round_halfup_sat(dsp0_p);
                     m12_reg <= q15_round_halfup_sat(dsp1_p);
 
                     // Wait 1 cycle for M13 and M14 to exit multiplier
-                    state   <= ST_CYC9;
+                    state   <= ST_INV4;
                 end
 
-                ST_CYC9: begin
+                ST_INV4: begin
                     // DSP outputs now have M13 and M14!
-                    // Compute Inverse Park (A9, A10)
-                    begin
-                        logic signed [15:0] m13_sat, m14_sat;
-                        m13_sat = q15_round_halfup_sat(dsp0_p);
-                        m14_sat = q15_round_halfup_sat(dsp1_p);
+                    // Break long DSP -> saturation -> adder -> v_beta chain across 2 stages
+                    m13_sat_reg <= q15_round_halfup_sat(dsp0_p);
+                    m14_sat_reg <= q15_round_halfup_sat(dsp1_p);
+                    v_alpha     <= q15_sub_sat(m11_reg, m12_reg);
 
-                        // Valpha = vd*cos - vq*sin = m11 - m12
-                        v_alpha <= q15_sub_sat(m11_reg, m12_reg);
+                    state <= ST_INV5;
+                end
 
-                        // Vbeta  = vd*sin + vq*cos = m13 + m14
-                        v_beta  <= q15_add_sat(m13_sat, m14_sat);
-                    end
+                ST_INV5: begin
+                    // Stage 2: compute final v_beta from registered m13_sat_reg and m14_sat_reg
+                    v_beta <= q15_add_sat(m13_sat_reg, m14_sat_reg);
 
                     done  <= 1'b1;
                     state <= ST_IDLE;

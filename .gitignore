@@ -18,6 +18,7 @@ transcript
 *.vcd
 *.wdb
 *.wdf
+*.pb
 
 # Vivado generated project build directories (gigabytes; regenerable with run_project_implementation.tcl)
 foc_motor_ctrl/foc_motor_ctrl.runs/
@@ -28,8 +29,53 @@ foc_motor_ctrl/foc_motor_ctrl.ip_user_files/
 foc_motor_ctrl/.Xil/
 .gen/
 .srcs/
+foc_motor_ctrl/xsim.dir/
 
-# Large binary artefacts (keep .bit and .ltx in reports/ for reference but ignore routed checkpoint)
+# Scratch / debug TCL scripts (not part of deliverable)
+foc_motor_ctrl/add_ila_xci.tcl
+foc_motor_ctrl/add_shared_files.tcl
+foc_motor_ctrl/check_all_failing.tcl
+foc_motor_ctrl/check_clarke_paths.tcl
+foc_motor_ctrl/check_cordic_paths.tcl
+foc_motor_ctrl/check_failing_endpoints.tcl
+foc_motor_ctrl/check_hier_dsp.tcl
+foc_motor_ctrl/check_hw_ila.tcl
+foc_motor_ctrl/check_ila_paths.tcl
+foc_motor_ctrl/check_ports.tcl
+foc_motor_ctrl/check_specific_paths.tcl
+foc_motor_ctrl/create_ila_ip.tcl
+foc_motor_ctrl/dump_all_failing.tcl
+foc_motor_ctrl/list_all_failing.tcl
+foc_motor_ctrl/read_ila.tcl
+foc_motor_ctrl/report_final_6.tcl
+foc_motor_ctrl/report_top10.tcl
+foc_motor_ctrl/report_top_failing.tcl
+foc_motor_ctrl/test_ila.tcl
+foc_motor_ctrl/test_impl.tcl
+foc_motor_ctrl/test_mcp.tcl
+foc_motor_ctrl/test_open_xpr.tcl
+foc_motor_ctrl/test_synth.tcl
+foc_motor_ctrl/test_synth_2dsp.tcl
+
+# Intermediate failing-path reports (regenerable)
+foc_motor_ctrl/reports/all_91_failing.rpt
+foc_motor_ctrl/reports/all_failing_endpoints.rpt
+foc_motor_ctrl/reports/final_6_failing.rpt
+foc_motor_ctrl/reports/top10_failing.rpt
+foc_motor_ctrl/reports/top20_failing_new.rpt
+
+# Misc scratch files
+foc_motor_ctrl/clockInfo.txt
+foc_motor_ctrl/dfx_runtime.txt
+foc_motor_ctrl/tight_setup_hold_pins.txt
+foc_motor_ctrl/xelab.pb
+foc_motor_ctrl/xvlog.pb
+foc_motor_ctrl/foc_motor_ctrl.srcs/sim_1/new/tb_svpwm_random.sv.bak
+foc_motor_ctrl/foc_motor_ctrl.srcs/utils_1/
+dfx_runtime.txt
+util_foc_shared_2dsp.rpt
+
+# Large binary artefacts (keep .bit and .ltx in reports/ but ignore routed checkpoint)
 foc_motor_ctrl/reports/foc_top_routed.dcp
 
 # Keep ILA data files (small, captured from hardware)

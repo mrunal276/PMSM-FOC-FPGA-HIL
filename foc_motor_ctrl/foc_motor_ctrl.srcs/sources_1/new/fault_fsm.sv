@@ -18,18 +18,27 @@ module fault_fsm #(
     output logic [2:0]         fault_code     // 0=none, 1=OC, 2=stall, 3=ext
 );
 
-    logic signed [31:0] alpha_sq;
-    logic signed [31:0] beta_sq;
-    logic signed [31:0] i_sq;
+    // Pipelined current-magnitude computation for 125 MHz timing closure
+    logic signed [31:0] alpha_sq_r;
+    logic signed [31:0] beta_sq_r;
+    logic signed [31:0] i_sq_r;
+    logic signed [15:0] abs_iq_ref_r;
 
-    assign alpha_sq = $signed(i_alpha) * $signed(i_alpha);
-    assign beta_sq  = $signed(i_beta) * $signed(i_beta);
-    assign i_sq     = (alpha_sq + beta_sq) >>> 15;
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            alpha_sq_r   <= 32'sd0;
+            beta_sq_r    <= 32'sd0;
+            i_sq_r       <= 32'sd0;
+            abs_iq_ref_r <= 16'sd0;
+        end else begin
+            alpha_sq_r   <= $signed(i_alpha) * $signed(i_alpha);
+            beta_sq_r    <= $signed(i_beta) * $signed(i_beta);
+            i_sq_r       <= (alpha_sq_r + beta_sq_r) >>> 15;
+            abs_iq_ref_r <= (iq_ref < 16'sd0) ? (-iq_ref) : iq_ref;
+        end
+    end
 
     logic [31:0] stall_counter;
-
-    logic signed [15:0] abs_iq_ref;
-    assign abs_iq_ref = (iq_ref < 16'sd0) ? (-iq_ref) : iq_ref;
 
     always_ff @(posedge clk) begin
         if (rst) begin
@@ -42,11 +51,11 @@ module fault_fsm #(
                 fault_active <= 1'b1;
                 pwm_inhibit  <= 1'b1;
                 fault_code   <= 3'd3;
-            end else if (i_sq > OC_THRESHOLD_SQ) begin
+            end else if (i_sq_r > OC_THRESHOLD_SQ) begin
                 fault_active <= 1'b1;
                 pwm_inhibit  <= 1'b1;
                 fault_code   <= 3'd1;
-            end else if (abs_iq_ref > 16'(IQ_STALL_THRESH) && omega_meas < 16'(OMEGA_MIN_THRESH)) begin
+            end else if (abs_iq_ref_r > 16'(IQ_STALL_THRESH) && omega_meas < 16'(OMEGA_MIN_THRESH)) begin
                 if (stall_counter >= STALL_TIMEOUT - 1) begin
                     fault_active <= 1'b1;
                     pwm_inhibit  <= 1'b1;

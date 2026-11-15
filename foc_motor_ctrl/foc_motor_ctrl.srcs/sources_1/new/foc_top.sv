@@ -144,21 +144,46 @@ module foc_top #(
     localparam logic signed [15:0] SQRT3_OVER_2_Q15 = 16'sd28378;
 
     logic signed [31:0] ib_beta_term;
-    assign ib_beta_term = ($signed(i_beta_pipe) * $signed(SQRT3_OVER_2_Q15)) >>> 15;
+    logic signed [15:0] alpha_pipe_d1;
+    logic signed [15:0] hil_ia_r, hil_ib_r, hil_ic_r;
+    logic        [15:0] theta_fdbk_r, omega_fdbk_r;
 
-    assign hil_ia = i_alpha_pipe;
-    assign hil_ib = 16'(-($signed(i_alpha_pipe) >>> 1) + $signed(ib_beta_term[15:0]));
-    assign hil_ic = 16'(-$signed(hil_ia) - $signed(hil_ib));
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            ib_beta_term   <= 32'sd0;
+            alpha_pipe_d1  <= 16'sd0;
+            hil_ia_r       <= 16'sd0;
+            hil_ib_r       <= 16'sd0;
+            hil_ic_r       <= 16'sd0;
+            theta_fdbk_r   <= 16'd0;
+            omega_fdbk_r   <= 16'd0;
+        end else begin
+            // Stage 1: Multiply beta term and buffer alpha/plant signals
+            ib_beta_term   <= ($signed(i_beta_pipe) * $signed(SQRT3_OVER_2_Q15)) >>> 15;
+            alpha_pipe_d1  <= i_alpha_pipe;
+            theta_fdbk_r   <= hil_theta;
+            omega_fdbk_r   <= hil_omega;
+
+            // Stage 2: Inverse Clarke additions and registered phase feedback
+            hil_ia_r       <= alpha_pipe_d1;
+            hil_ib_r       <= 16'(-($signed(alpha_pipe_d1) >>> 1) + $signed(ib_beta_term[15:0]));
+            hil_ic_r       <= 16'(-$signed(alpha_pipe_d1) - 16'(-($signed(alpha_pipe_d1) >>> 1) + $signed(ib_beta_term[15:0])));
+        end
+    end
+
+    assign hil_ia     = hil_ia_r;
+    assign hil_ib     = hil_ib_r;
+    assign hil_ic     = hil_ic_r;
 
     // Feedback signals to FOC controller
     logic signed [15:0] ia_fdbk, ib_fdbk, ic_fdbk;
     logic        [15:0] theta_fdbk, omega_fdbk;
 
-    assign ia_fdbk    = hil_ia;
-    assign ib_fdbk    = hil_ib;
-    assign ic_fdbk    = hil_ic;
-    assign theta_fdbk = hil_theta;
-    assign omega_fdbk = hil_omega;
+    assign ia_fdbk    = hil_ia_r;
+    assign ib_fdbk    = hil_ib_r;
+    assign ic_fdbk    = hil_ic_r;
+    assign theta_fdbk = theta_fdbk_r;
+    assign omega_fdbk = omega_fdbk_r;
 
     // ------------------------------------------------------------------------
     // Multiplexing between Open-Loop Startup and Closed-Loop FOC
@@ -173,9 +198,22 @@ module foc_top #(
     assign id_ref_mux    = open_loop_active ? $signed(id_ref_override) : csr_id_ref;
 
     // In open loop align/ramp, current feedback is not closed; feed measured or 0
-    assign ia_in_mux = foc_enable ? ia_fdbk : 16'sd0;
-    assign ib_in_mux = foc_enable ? ib_fdbk : 16'sd0;
-    assign ic_in_mux = foc_enable ? ic_fdbk : 16'sd0;
+    // Pipelined register stage isolates top-level startup mux from Clarke DSP multipliers and CORDIC
+    logic signed [15:0] ia_in_mux_r, ib_in_mux_r, ic_in_mux_r;
+    logic        [15:0] theta_e_mux_r;
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            ia_in_mux_r   <= 16'sd0;
+            ib_in_mux_r   <= 16'sd0;
+            ic_in_mux_r   <= 16'sd0;
+            theta_e_mux_r <= 16'd0;
+        end else begin
+            ia_in_mux_r   <= foc_enable ? ia_fdbk : 16'sd0;
+            ib_in_mux_r   <= foc_enable ? ib_fdbk : 16'sd0;
+            ic_in_mux_r   <= foc_enable ? ic_fdbk : 16'sd0;
+            theta_e_mux_r <= theta_e_mux;
+        end
+    end
 
     // Pipeline execution triggered at 20/25 kHz carrier valley
     assign foc_input_valid = carrier_sync && (foc_enable || open_loop_active);
@@ -191,10 +229,10 @@ module foc_top #(
         .clk          (clk),
         .rst          (rst),
         .input_valid  (foc_input_valid),
-        .ia_in        (ia_in_mux),
-        .ib_in        (ib_in_mux),
-        .ic_in        (ic_in_mux),
-        .theta_e      (theta_e_mux),
+        .ia_in        (ia_in_mux_r),
+        .ib_in        (ib_in_mux_r),
+        .ic_in        (ic_in_mux_r),
+        .theta_e      (theta_e_mux_r),
         .omega_meas   (omega_fdbk),
         .omega_ref    (omega_ref_mux),
         .id_ref       (id_ref_mux),
