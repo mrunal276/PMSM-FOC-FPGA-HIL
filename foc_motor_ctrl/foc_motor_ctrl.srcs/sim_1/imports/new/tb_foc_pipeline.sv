@@ -6,7 +6,7 @@ module tb_foc_pipeline;
     localparam integer MAX_VECTORS      = 500;
     localparam integer DUTY_TOL         = 2;
     localparam integer TRANSFORM_TOL    = 2;
-    localparam integer EXPECTED_LATENCY = 29; // 2-DSP time-multiplexed shared engine (was 22)
+    localparam integer EXPECTED_LATENCY = 41; // 2-DSP time-multiplexed shared engine (fully pipelined for 125 MHz)
 
     reg clk = 0;
     reg rst = 1;
@@ -457,7 +457,7 @@ module tb_foc_pipeline;
 
 
         // Allow final transactions to leave the pipeline.
-        repeat (35) @(negedge clk);
+        repeat (100) @(negedge clk);
 
         $display("");
         $display("==================================================");

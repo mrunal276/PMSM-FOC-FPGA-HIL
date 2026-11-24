@@ -29,6 +29,7 @@ if {[get_property PROGRESS [get_runs impl_1]] != "100%"} {
 # Open routed design and export updated reports
 open_run impl_1
 report_utilization -file c:/Users/Mrunal/rtl_design_verif_project/foc_motor_ctrl/reports/foc_top_impl_utilization.rpt
+report_utilization -hierarchical -file c:/Users/Mrunal/rtl_design_verif_project/foc_motor_ctrl/reports/hierarchical_utilization.rpt
 report_timing_summary -file c:/Users/Mrunal/rtl_design_verif_project/foc_motor_ctrl/reports/foc_top_impl_timing.rpt
 
 # Copy fresh bitstream to reports directory

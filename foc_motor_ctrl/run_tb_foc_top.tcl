@@ -9,6 +9,7 @@ read_verilog -sv c:/Users/Mrunal/rtl_design_verif_project/foc_motor_ctrl/foc_mot
 read_verilog -sv c:/Users/Mrunal/rtl_design_verif_project/foc_motor_ctrl/foc_motor_ctrl.srcs/sources_1/new/speed_pi.sv
 read_verilog -sv c:/Users/Mrunal/rtl_design_verif_project/foc_motor_ctrl/foc_motor_ctrl.srcs/sources_1/new/current_pi.sv
 read_verilog -sv c:/Users/Mrunal/rtl_design_verif_project/foc_motor_ctrl/foc_motor_ctrl.srcs/sources_1/new/inv_park.sv
+read_verilog -sv c:/Users/Mrunal/rtl_design_verif_project/foc_motor_ctrl/foc_motor_ctrl.srcs/sources_1/new/foc_shared_2dsp.sv
 read_verilog -sv c:/Users/Mrunal/rtl_design_verif_project/foc_motor_ctrl/foc_motor_ctrl.srcs/sources_1/new/svpwm.sv
 read_verilog -sv c:/Users/Mrunal/rtl_design_verif_project/foc_motor_ctrl/foc_motor_ctrl.srcs/sources_1/new/foc_pipeline.sv
 read_verilog -sv c:/Users/Mrunal/rtl_design_verif_project/foc_motor_ctrl/foc_motor_ctrl.srcs/sources_1/new/pwm_generator.sv

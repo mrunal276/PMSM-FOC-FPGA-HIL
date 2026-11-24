@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 -----------------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.1 (win64) Build 6140274 Thu May 22 00:12:29 MDT 2025
-| Date         : Tue Nov 10 22:06:49 2026
+| Date         : Wed Nov 11 13:09:50 2026
 | Host         : Mrunal6 running 64-bit major release  (build 9200)
 | Command      : report_utilization -hierarchical -file c:/Users/Mrunal/rtl_design_verif_project/foc_motor_ctrl/reports/hierarchical_utilization.rpt
 | Design       : foc_top
@@ -22,14 +22,14 @@ Table of Contents
 +-------------------------------------------------------+----------------------------------------------+------------+------------+---------+------+------+--------+--------+------------+
 |                        Instance                       |                    Module                    | Total LUTs | Logic LUTs | LUTRAMs | SRLs |  FFs | RAMB36 | RAMB18 | DSP Blocks |
 +-------------------------------------------------------+----------------------------------------------+------------+------------+---------+------+------+--------+--------+------------+
-| foc_top                                               |                                        (top) |      12594 |      12201 |      24 |  369 | 6114 |      3 |      1 |         44 |
-|   (foc_top)                                           |                                        (top) |        100 |        100 |       0 |    0 |   43 |      0 |      0 |          1 |
-|   dbg_hub                                             |                                      dbg_hub |        452 |        428 |      24 |    0 |  741 |      0 |      0 |          0 |
-|     inst                                              |                           xsdbm_v3_0_4_xsdbm |        452 |        428 |      24 |    0 |  741 |      0 |      0 |          0 |
-|       BSCANID.u_xsdbm_id                              |                        xsdbm_v3_0_4_xsdbm_id |        452 |        428 |      24 |    0 |  741 |      0 |      0 |          0 |
-|         SWITCH_N_EXT_BSCAN.bscan_switch               |                    xsdbm_v3_0_4_bscan_switch |        124 |        124 |       0 |    0 |  125 |      0 |      0 |          0 |
-|         CORE_XSDB.UUT_MASTER                          |                       xsdbm_v3_0_4_icon2xsdb |        276 |        252 |      24 |    0 |  554 |      0 |      0 |          0 |
-|           U_ICON_INTERFACE                            |                              xsdbm_v3_0_4_if |        165 |        141 |      24 |    0 |  450 |      0 |      0 |          0 |
+| foc_top                                               |                                        (top) |      11777 |      11384 |      24 |  369 | 6822 |      3 |      1 |         44 |
+|   (foc_top)                                           |                                        (top) |         67 |         67 |       0 |    0 |  170 |      0 |      0 |          1 |
+|   dbg_hub                                             |                                      dbg_hub |        449 |        425 |      24 |    0 |  741 |      0 |      0 |          0 |
+|     inst                                              |                           xsdbm_v3_0_4_xsdbm |        449 |        425 |      24 |    0 |  741 |      0 |      0 |          0 |
+|       BSCANID.u_xsdbm_id                              |                        xsdbm_v3_0_4_xsdbm_id |        449 |        425 |      24 |    0 |  741 |      0 |      0 |          0 |
+|         SWITCH_N_EXT_BSCAN.bscan_switch               |                    xsdbm_v3_0_4_bscan_switch |        125 |        125 |       0 |    0 |  125 |      0 |      0 |          0 |
+|         CORE_XSDB.UUT_MASTER                          |                       xsdbm_v3_0_4_icon2xsdb |        272 |        248 |      24 |    0 |  554 |      0 |      0 |          0 |
+|           U_ICON_INTERFACE                            |                              xsdbm_v3_0_4_if |        163 |        139 |      24 |    0 |  450 |      0 |      0 |          0 |
 |             U_CMD6_WR                                 |                           xsdbm_v3_0_4_wrreg |         46 |         34 |      12 |    0 |  110 |      0 |      0 |          0 |
 |               U_WR_FIFO                               |                          xsdbm_v3_0_4_wrfifo |         44 |         32 |      12 |    0 |   90 |      0 |      0 |          0 |
 |                 SUBCORE_FIFO.xsdbm_v3_0_4_wrfifo_inst |                       fifo_generator_v13_1_5 |         42 |         30 |      12 |    0 |   90 |      0 |      0 |          0 |
@@ -37,42 +37,42 @@ Table of Contents
 |                     gconvfifo.rf                      |                           fifo_generator_top |         42 |         30 |      12 |    0 |   90 |      0 |      0 |          0 |
 |                       grf.rf                          |                       fifo_generator_ramfifo |         42 |         30 |      12 |    0 |   90 |      0 |      0 |          0 |
 |             U_CMD4                                    |         xsdbm_v3_0_4_ctl_reg__parameterized0 |          9 |          9 |       0 |    0 |   62 |      0 |      0 |          0 |
-|             U_CMD6_RD                                 |                           xsdbm_v3_0_4_rdreg |         68 |         56 |      12 |    0 |  134 |      0 |      0 |          0 |
-|               U_RD_FIFO                               |                          xsdbm_v3_0_4_rdfifo |         66 |         54 |      12 |    0 |  114 |      0 |      0 |          0 |
-|                 SUBCORE_FIFO.xsdbm_v3_0_4_rdfifo_inst |       fifo_generator_v13_1_5__parameterized0 |         48 |         36 |      12 |    0 |  114 |      0 |      0 |          0 |
-|                   inst_fifo_gen                       | fifo_generator_v13_1_5_synth__parameterized0 |         48 |         36 |      12 |    0 |  114 |      0 |      0 |          0 |
-|                     gconvfifo.rf                      |           fifo_generator_top__parameterized0 |         48 |         36 |      12 |    0 |  114 |      0 |      0 |          0 |
-|                       grf.rf                          |       fifo_generator_ramfifo__parameterized0 |         48 |         36 |      12 |    0 |  114 |      0 |      0 |          0 |
-|           U_XSDB_BUS_CONTROLLER                       |                         xsdbm_v3_0_4_bus_ctl |         71 |         71 |       0 |    0 |   48 |      0 |      0 |          0 |
-|   gen_ila.u_ila                                       |                                        ila_0 |       1601 |       1316 |       0 |  285 | 2636 |      3 |      1 |          0 |
-|     inst                                              |                        ila_0_ila_v6_2_18_ila |       1601 |       1316 |       0 |  285 | 2636 |      3 |      1 |          0 |
-|       ila_core_inst                                   |                   ila_0_ila_v6_2_18_ila_core |       1600 |       1315 |       0 |  285 | 2630 |      3 |      1 |          0 |
+|             U_CMD6_RD                                 |                           xsdbm_v3_0_4_rdreg |         67 |         55 |      12 |    0 |  134 |      0 |      0 |          0 |
+|               U_RD_FIFO                               |                          xsdbm_v3_0_4_rdfifo |         65 |         53 |      12 |    0 |  114 |      0 |      0 |          0 |
+|                 SUBCORE_FIFO.xsdbm_v3_0_4_rdfifo_inst |       fifo_generator_v13_1_5__parameterized0 |         47 |         35 |      12 |    0 |  114 |      0 |      0 |          0 |
+|                   inst_fifo_gen                       | fifo_generator_v13_1_5_synth__parameterized0 |         47 |         35 |      12 |    0 |  114 |      0 |      0 |          0 |
+|                     gconvfifo.rf                      |           fifo_generator_top__parameterized0 |         47 |         35 |      12 |    0 |  114 |      0 |      0 |          0 |
+|                       grf.rf                          |       fifo_generator_ramfifo__parameterized0 |         47 |         35 |      12 |    0 |  114 |      0 |      0 |          0 |
+|           U_XSDB_BUS_CONTROLLER                       |                         xsdbm_v3_0_4_bus_ctl |         69 |         69 |       0 |    0 |   48 |      0 |      0 |          0 |
+|   gen_ila.u_ila                                       |                                        ila_0 |       1591 |       1306 |       0 |  285 | 2636 |      3 |      1 |          0 |
+|     inst                                              |                        ila_0_ila_v6_2_18_ila |       1591 |       1306 |       0 |  285 | 2636 |      3 |      1 |          0 |
+|       ila_core_inst                                   |                   ila_0_ila_v6_2_18_ila_core |       1590 |       1305 |       0 |  285 | 2630 |      3 |      1 |          0 |
 |         (ila_core_inst)                               |                   ila_0_ila_v6_2_18_ila_core |         63 |          0 |       0 |   63 |  166 |      0 |      0 |          0 |
-|         u_ila_cap_ctrl                                |        ila_0_ila_v6_2_18_ila_cap_ctrl_legacy |         79 |         32 |       0 |   47 |  127 |      0 |      0 |          0 |
-|           u_cap_addrgen                               |            ila_0_ila_v6_2_18_ila_cap_addrgen |         63 |         26 |       0 |   37 |  121 |      0 |      0 |          0 |
+|         u_ila_cap_ctrl                                |        ila_0_ila_v6_2_18_ila_cap_ctrl_legacy |         78 |         31 |       0 |   47 |  127 |      0 |      0 |          0 |
+|           u_cap_addrgen                               |            ila_0_ila_v6_2_18_ila_cap_addrgen |         62 |         25 |       0 |   37 |  121 |      0 |      0 |          0 |
 |             (u_cap_addrgen)                           |            ila_0_ila_v6_2_18_ila_cap_addrgen |          1 |          0 |       0 |    1 |   68 |      0 |      0 |          0 |
-|         u_ila_regs                                    |               ila_0_ila_v6_2_18_ila_register |       1147 |       1146 |       0 |    1 | 1585 |      0 |      0 |          0 |
-|           (u_ila_regs)                                |               ila_0_ila_v6_2_18_ila_register |        377 |        376 |       0 |    1 |  179 |      0 |      0 |          0 |
+|         u_ila_regs                                    |               ila_0_ila_v6_2_18_ila_register |       1141 |       1140 |       0 |    1 | 1585 |      0 |      0 |          0 |
+|           (u_ila_regs)                                |               ila_0_ila_v6_2_18_ila_register |        375 |        374 |       0 |    1 |  179 |      0 |      0 |          0 |
 |           U_XSDB_SLAVE                                |                     ila_0_xsdbs_v1_0_5_xsdbs |         76 |         76 |       0 |    0 |  213 |      0 |      0 |          0 |
 |         u_trig                                        |                ila_0_ila_v6_2_18_ila_trigger |        235 |         63 |       0 |  172 |  571 |      0 |      0 |          0 |
 |           (U_TM)                                      |             ila_0_ila_v6_2_18_ila_trig_match |         62 |         62 |       0 |    0 |    0 |      0 |      0 |          0 |
-|         xsdb_memory_read_inst                         |             ila_0_ltlib_v1_0_3_generic_memrd |         68 |         66 |       0 |    2 |  147 |      0 |      0 |          0 |
-|   u_cpu                                               |                                   rv32i_core |        278 |        278 |       0 |    0 |  185 |      0 |      0 |          0 |
-|     (u_cpu)                                           |                                   rv32i_core |         97 |         97 |       0 |    0 |   89 |      0 |      0 |          0 |
-|     u_rf                                              |                                rv32i_regfile |        179 |        179 |       0 |    0 |   96 |      0 |      0 |          0 |
+|         xsdb_memory_read_inst                         |             ila_0_ltlib_v1_0_3_generic_memrd |         64 |         62 |       0 |    2 |  147 |      0 |      0 |          0 |
+|   u_cpu                                               |                                   rv32i_core |        260 |        260 |       0 |    0 |  185 |      0 |      0 |          0 |
+|     (u_cpu)                                           |                                   rv32i_core |         91 |         91 |       0 |    0 |   89 |      0 |      0 |          0 |
+|     u_rf                                              |                                rv32i_regfile |        168 |        168 |       0 |    0 |   96 |      0 |      0 |          0 |
 |   u_csr                                               |                                      apb_csr |         56 |         56 |       0 |    0 |   65 |      0 |      0 |          0 |
-|   u_fault                                             |                                    fault_fsm |         58 |         58 |       0 |    0 |   21 |      0 |      0 |          2 |
-|   u_pipeline                                          |                                 foc_pipeline |       8401 |       8317 |       0 |   84 | 1974 |      0 |      0 |         24 |
-|     (u_pipeline)                                      |                                 foc_pipeline |         80 |          0 |       0 |   80 |  160 |      0 |      0 |          0 |
-|     u_clarke                                          |                                       clarke |        120 |        120 |       0 |    0 |   32 |      0 |      0 |          2 |
-|     u_cordic                                          |                                       cordic |       1230 |       1226 |       0 |    4 | 1125 |      0 |      0 |          0 |
-|     u_foc_shared_2dsp                                 |                              foc_shared_2dsp |       2838 |       2838 |       0 |    0 |  412 |      0 |      0 |          2 |
-|       (u_foc_shared_2dsp)                             |                              foc_shared_2dsp |       1822 |       1822 |       0 |    0 |  412 |      0 |      0 |          0 |
-|       u_dsp0                                          |                                dsp_mult_cell |        530 |        530 |       0 |    0 |    0 |      0 |      0 |          1 |
-|       u_dsp1                                          |                              dsp_mult_cell_0 |        488 |        488 |       0 |    0 |    0 |      0 |      0 |          1 |
-|     u_svpwm                                           |                                        svpwm |       4156 |       4156 |       0 |    0 |  245 |      0 |      0 |         20 |
-|   u_plant                                             |                                   pmsm_plant |        868 |        868 |       0 |    0 |  111 |      0 |      0 |         14 |
-|   u_pwm_gen                                           |                                pwm_generator |        610 |        610 |       0 |    0 |   87 |      0 |      0 |          3 |
+|   u_fault                                             |                                    fault_fsm |         61 |         61 |       0 |    0 |   37 |      0 |      0 |          2 |
+|   u_pipeline                                          |                                 foc_pipeline |       8150 |       8066 |       0 |   84 | 2526 |      0 |      0 |         24 |
+|     (u_pipeline)                                      |                                 foc_pipeline |        120 |         40 |       0 |   80 |  176 |      0 |      0 |          0 |
+|     u_clarke                                          |                                       clarke |        104 |        104 |       0 |    0 |  147 |      0 |      0 |          2 |
+|     u_cordic                                          |                                       cordic |       1217 |       1213 |       0 |    4 | 1108 |      0 |      0 |          0 |
+|     u_foc_shared_2dsp                                 |                              foc_shared_2dsp |       5781 |       5781 |       0 |    0 |  850 |      0 |      0 |          2 |
+|       (u_foc_shared_2dsp)                             |                              foc_shared_2dsp |       5235 |       5235 |       0 |    0 |  745 |      0 |      0 |          0 |
+|       u_dsp0                                          |                                dsp_mult_cell |        274 |        274 |       0 |    0 |   56 |      0 |      0 |          1 |
+|       u_dsp1                                          |                              dsp_mult_cell_0 |        276 |        276 |       0 |    0 |   49 |      0 |      0 |          1 |
+|     u_svpwm                                           |                                        svpwm |        951 |        951 |       0 |    0 |  245 |      0 |      0 |         20 |
+|   u_plant                                             |                                   pmsm_plant |        861 |        861 |       0 |    0 |  111 |      0 |      0 |         14 |
+|   u_pwm_gen                                           |                                pwm_generator |         93 |         93 |       0 |    0 |  100 |      0 |      0 |          3 |
 |   u_startup                                           |                                  startup_fsm |        114 |        114 |       0 |    0 |  101 |      0 |      0 |          0 |
 |   u_uart                                              |                                  uart_logger |         48 |         48 |       0 |    0 |  132 |      0 |      0 |          0 |
 +-------------------------------------------------------+----------------------------------------------+------------+------------+---------+------+------+--------+--------+------------+

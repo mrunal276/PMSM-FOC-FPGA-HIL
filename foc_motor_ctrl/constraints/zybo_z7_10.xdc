@@ -41,16 +41,28 @@ set_property -dict { PACKAGE_PIN Y14   IOSTANDARD LVCMOS33 } [get_ports { gate_c
 set_property -dict { PACKAGE_PIN N15   IOSTANDARD LVCMOS33 } [get_ports { uart_tx }]; # ja_p[1]
 
 ## ============================================================
-## Timing Exceptions: False Paths for Asynchronous Inputs
+## Timing Exceptions: False Paths for Asynchronous Inputs & Debug
 ## ============================================================
 set_false_path -from [get_ports btn_rst]
 set_false_path -from [get_ports start_btn]
 set_false_path -from [get_ports ext_irq]
+set_false_path -through [get_cells -hierarchical -filter {NAME =~ *gen_ila*U_XSDB_SLAVE*}]
 
 ## ============================================================
 ## Multicycle Path: SVPWM Stage-1 (64-bit overmodulation divide)
 ## SVPWM runs at 25 kHz (carrier rate, once per 5000 cycles).
 ## The stage-1 divide path has 40 µs to settle.
+## Covers all internal SVPWM registers including phys_opt *psdsp*.
 ## ============================================================
-set_multicycle_path 35 -setup -from [get_cells -hierarchical -filter {NAME =~ *u_pipeline/u_inv_park/*}] -to [get_cells -hierarchical -filter {NAME =~ *u_pipeline/u_svpwm/*_r_reg*}]
-set_multicycle_path 34 -hold  -from [get_cells -hierarchical -filter {NAME =~ *u_pipeline/u_inv_park/*}] -to [get_cells -hierarchical -filter {NAME =~ *u_pipeline/u_svpwm/*_r_reg*}]
+set_multicycle_path 35 -setup -to [get_cells -hierarchical -filter {NAME =~ *u_pipeline/u_svpwm/*}]
+set_multicycle_path 34 -hold  -to [get_cells -hierarchical -filter {NAME =~ *u_pipeline/u_svpwm/*}]
+
+## ============================================================
+## Multicycle Path: PMSM Plant Model (HIL Digital Twin)
+## The plant updates once per control cycle (20/25 kHz carrier rate,
+## once every 5,000 clock cycles = 40 µs).
+## The combinational state increment cone has 40 µs to settle.
+## Covers all internal plant registers including phys_opt *psdsp*.
+## ============================================================
+set_multicycle_path 5 -setup -to [get_cells -hierarchical -filter {NAME =~ *u_plant/*}]
+set_multicycle_path 4 -hold  -to [get_cells -hierarchical -filter {NAME =~ *u_plant/*}]
