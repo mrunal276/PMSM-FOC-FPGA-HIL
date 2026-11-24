@@ -104,3 +104,6 @@ reports/
 
 # Large Vivado paper implementation project (Vivado-generated, regenerable)
 Tufekci2020_Paper_Implementation-main/
+
+# Ignore archive zips
+*.zip
