@@ -87,3 +87,20 @@ ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 .DS_Store
+
+# LaTeX intermediate build files (not needed in repo)
+*.aux
+*.out
+*.toc
+*.synctex.gz
+*.log
+
+# Course-provided template (not our work)
+LaTeX template.zip
+LaTeX template/
+
+# Duplicate report copies in /reports subfolder
+reports/
+
+# Large Vivado paper implementation project (Vivado-generated, regenerable)
+Tufekci2020_Paper_Implementation-main/
