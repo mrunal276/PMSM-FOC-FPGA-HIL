@@ -1,6 +1,6 @@
 # P11 — Field-Oriented Motor Controller with Hardware-in-the-Loop (HIL)
 > **Target:** Digilent Zybo Z7-10 (`xc7z010clg400-1`, Speed Grade -1) · Vivado 2025.1 · 125 MHz  
-> **Status: ✅ COMPLETE — Timing closed (WNS = +0.321 ns, 0 failing endpoints). Bitstream generated and hardware-validated via ILA.**
+> **Status: Timing closed (WNS = +0.321 ns, 0 failing endpoints). Bitstream generated and hardware-validated via ILA.**
 
 ---
 
